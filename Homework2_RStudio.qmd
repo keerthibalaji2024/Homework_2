@@ -1,0 +1,146 @@
+---
+title: "Homework 2 DACSS 690C"
+author: "Keerthi Balaji"
+format: html
+editor: visual
+---
+
+```{r}
+#importing libraries 
+
+library(igraph)
+library(ggplot2)
+library(ggraph)
+
+```
+
+```{r}
+#clearing workspace
+rm(list = ls())
+
+```
+
+
+
+```{r}
+#set seed
+set.seed(1111)
+
+#importing network from github
+hollywood.graphml = "https://github.com/keerthibalaji2024/Homework_2/raw/main/hollywood.graphml"
+
+#reading graph
+actors=read_graph(hollywood.graphml,format='graphml')
+summary(actors)
+
+```
+
+```{r}
+base=ggraph(graph = actors)
+
+base + geom_edge_link(
+    aes(label = weight), # Use weight for both label and width
+    alpha = 0.5,
+    label_size = 2.5,
+    angle_calc = 'along' # Optional: Draws the label along the edge line
+  ) +
+  
+  geom_node_text(
+    aes(label = name), 
+    repel = TRUE)
+
+  
+
+
+
+
+
+```
+```{r}
+#add centrality measures
+eigen=eigen_centrality (actors)$vector
+
+close=closeness(actors,normalized=T)
+
+betw=betweenness(actors,normalized=T)
+
+#create a dataframe for them
+DFCentrality=as.data.frame(cbind(eigen,close,betw),stringsAsFactors = F)
+names(DFCentrality)=c('Eigenvector','Closeness','Betweenness')
+
+DFCentrality$person=row.names(DFCentrality)
+row.names(DFCentrality)=NULL
+
+# dataframe
+head(DFCentrality)
+```
+```{r}
+#create correlation plot 
+ggplot(DFCentrality, aes(x=Betweenness, y=Closeness)) + 
+    theme_classic() +
+    geom_text(aes(label=person,size=Eigenvector),show.legend = T,alpha=0.5) 
+
+#most of the actors remain spread out from each other and have low eigenvector scores but three stand out. Al Pacino, Robert De Niro, and Robin Williams, who have the highest eigenvector centrality. Of these three, Robin Williams has the highest closeness and betweenness centrality as well. Overall, Tom Hanks has the higest betweenness and closeness centrality. 
+```
+
+```{r}
+#are communities possible?
+
+#plotting random net 
+RandomNet <- sample_gnp(length(V(actors)),p=edge_density(actors))
+
+#transitivity rate
+transitivity(actors)/transitivity(RandomNet)
+
+#based on the transitivity score, it looks like communities are possible
+```
+```{r}
+#Girvan-Newman
+partition_girvanNewman_best <- cluster_edge_betweenness(actors)
+table(membership(partition_girvanNewman_best))
+max(partition_girvanNewman_best$modularity)
+
+#Louvain
+partition_louvain_optimal <- cluster_louvain(actors)
+table(membership(partition_louvain_optimal))
+max(partition_louvain_optimal$modularity)
+
+#Girvan-Newman is the best
+```
+
+```{r}
+V(actors)$girvanNewman=as.factor(membership(partition_girvanNewman_best))
+
+base=ggraph(graph =actors,layout = 'fr') + geom_edge_link(alpha=0.2)
+base + geom_node_point(aes(color=girvanNewman), show.legend = T, size=4)
+
+
+```
+
+```{r}
+#alternate plot
+V(actors)$degree = degree(actors)
+
+ggraph(actors, layout = 'hive', 
+       axis = girvanNewman,
+       sort.by = degree
+       ) +   
+  geom_edge_hive(color='grey80') +   
+  geom_axis_hive(aes(colour = girvanNewman), 
+                 label = F) + 
+  geom_node_point(aes(colour = girvanNewman)) +
+  geom_node_text(aes(label = name), 
+                 repel = TRUE, 
+                 max.overlaps = 50, # avoid overlap
+                 size = 2.5) +
+  coord_fixed()
+```
+
+
+
+
+
+
+
+
+
